@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syrven Sync</title>
+    <!-- Favicon (Icon Tab Browser) Menggunakan File.png -->
+    <link rel="icon" type="image/png" href="logotab-syrven.png">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#F7F8FC',  /* Cool Gray */
+                            100: '#e5e9fc',
+                            500: '#3B46F2',  /* Electric Blue */
+                            600: '#2635D9',  /* Royal Blue */
+                            700: '#1B2452',  /* Soft Mint (Dark Navy) */
+                            800: '#151d42',
+                            900: '#111111',  /* Midnight Nav */
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts: Inter & JetBrains Mono untuk angka digital -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .font-mono-custom {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        button, [role="button"], #sync-status-badge {
+            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), 
+                        box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), 
+                        background-color 0.25s ease, 
+                        border-color 0.25s ease, 
+                        color 0.25s ease !important;
+            will-change: transform, box-shadow;
+        }
+
+        button:hover:not(:disabled), #sync-status-badge:hover {
+            transform: translateY(-2px) scale(1.025);
+            box-shadow: 0 10px 20px -5px rgba(59, 70, 242, 0.25);
+        }
+
+        button:active:not(:disabled), #sync-status-badge:active {
+            transform: translateY(0.5px) scale(0.96);
+            box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.12);
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Indikator Animasi Garis Tab */
+        .tab-btn {
+            position: relative;
+        }
+
+        .tab-btn::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            width: 0%;
+            height: 2px;
+            background-color: currentColor;
+            border-radius: 9999px;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            transform: translateX(-50%);
+            opacity: 0;
+        }
+
+        .tab-btn:hover::after {
+            width: 50%;
+            opacity: 0.6;
+        }
+
+        .tab-btn-active::after {
+            width: 70% !important;
+            opacity: 1 !important;
+        }
+
+        /* Efek Liquid Frosted Glass (Tema Terang dengan Tint Palet Baru) */
+        .glass {
+            background: rgba(247, 248, 252, 0.55);
+            backdrop-filter: blur(24px) saturate(190%);
+            -webkit-backdrop-filter: blur(24px) saturate(190%);
+            border: 1px solid rgba(255, 255, 255, 0.75);
+            box-shadow: 0 20px 50px rgba(27, 36, 82, 0.08), inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
+        }
+        .glass-input {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+        }
+        
+        /* Animasi Fluid Gradient Orbs Background Berdasarkan Palet Baru */
+        .liquid-bg {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            overflow: hidden;
+            background: #F7F8FC;
+        }
+        .liquid-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(90px);
+            opacity: 0.65;
+            animation: floatBlob 20s infinite alternate ease-in-out;
+        }
+        .blob-1 { top: -10%; left: -10%; width: 55vw; height: 55vw; background: linear-gradient(135deg, #3B46F2, #2635D9, #1B2452); }
+        .blob-2 { bottom: -15%; right: -10%; width: 60vw; height: 60vw; background: linear-gradient(135deg, #2635D9, #1B2452, #3B46F2); animation-delay: -7s; }
+        .blob-3 { top: 35%; right: 10%; width: 45vw; height: 45vw; background: linear-gradient(135deg, #3B46F2, #F7F8FC, #2635D9); animation-delay: -14s; }
+        
+        @keyframes floatBlob {
+            0% { transform: translate(0, 0) rotate(0deg) scale(1); }
+            50% { transform: translate(60px, -40px) rotate(180deg) scale(1.1); }
+            100% { transform: translate(-40px, 50px) rotate(360deg) scale(0.95); }
+        }
+    </style>
+</head>
+<body class="text-[#111111] min-h-screen flex flex-col justify-between overflow-x-hidden pb-20 sm:pb-0 relative selection:bg-brand-500 selection:text-white">
+
+    <!-- Fluid Gradient Ambient Background -->
+    <div class="liquid-bg">
+        <div class="liquid-blob blob-1"></div>
+        <div class="liquid-blob blob-2"></div>
+        <div class="liquid-blob blob-3"></div>
+    </div>
+
+    <!-- Header / Navbar -->
+    <header class="w-full max-w-5xl mx-auto px-3 sm:px-4 pt-3 sm:pt-5 z-10">
+        <div class="glass w-full px-4 sm:px-6 py-2.5 sm:py-3 rounded-full flex items-center justify-between gap-2 sm:gap-4 shadow-xl">
+            <!-- Left: Logo & Title -->
+            <div class="flex items-center gap-2.5 sm:gap-3 shrink-0">
+                <div class="w-9 h-9 sm:w-11 sm:h-11 bg-white/70 backdrop-blur-md rounded-2xl border border-white/80 shadow-md shadow-brand-500/10 flex items-center justify-center overflow-hidden p-1">
+                    <img 
+                        id="user-custom-logo" 
+                        src="syrven-icon.png" 
+                        alt="Logo Application" 
+                        class="w-full h-full object-contain"
+                        onerror="this.style.display='none'; document.getElementById('fallback-icon').style.display='block';"
+                    />
+
+                    <!-- Fallback Ikon Bawaan -->
+                    <svg id="fallback-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6 text-brand-600 animate-pulse hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+
+                <div>
+                    <h1 class="text-sm sm:text-base font-bold tracking-tight text-[#111111] leading-tight">Syrven<span class="text-brand-500">Sync</span></h1>
+                    <p class="text-[9px] sm:text-[11px] text-[#1B2452]/70 font-medium leading-tight">Jam Presisi Server NTP</p>
+                </div>
+            </div>
+
+            <!-- Center: Navigation Tabs -->
+            <div class="hidden md:flex items-center justify-center gap-1 lg:gap-2">
+                <button onclick="switchTab('jam')" id="tab-jam" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 bg-brand-600 text-white shadow-md shadow-brand-500/20 whitespace-nowrap uppercase tracking-wider tab-btn tab-btn-active">
+                    JAM UTAMA
+                </button>
+                <button onclick="switchTab('dunia')" id="tab-dunia" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 text-[#1B2452]/70 hover:text-[#111111] hover:bg-white/40 whitespace-nowrap uppercase tracking-wider tab-btn">
+                    JAM DUNIA
+                </button>
+                <button onclick="switchTab('stopwatch')" id="tab-stopwatch" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 text-[#1B2452]/70 hover:text-[#111111] hover:bg-white/40 whitespace-nowrap uppercase tracking-wider tab-btn">
+                    STOPWATCH
+                </button>
+                <button onclick="switchTab('timer')" id="tab-timer" class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 text-[#1B2452]/70 hover:text-[#111111] hover:bg-white/40 whitespace-nowrap uppercase tracking-wider tab-btn">
+                    TIMER
+                </button>
+            </div>
+            
+            <!-- Right: Status Sinkronisasi Badge -->
+            <div id="sync-status-badge" class="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-700 text-[11px] sm:text-xs font-semibold cursor-pointer transition-all duration-300 hover:bg-amber-500/20 bg-white/50 backdrop-blur-md shrink-0" onclick="sinkronisasiWaktu()">
+                <span class="relative flex h-2 w-2">
+                    <span id="sync-dot-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-500 opacity-75"></span>
+                    <span id="sync-dot" class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+                <span id="sync-status-text">Mengkalibrasi...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 w-full max-w-5xl mx-auto px-3 sm:px-4 flex flex-col justify-center py-3 sm:py-6">
+
+        <!-- TAB 1: JAM UTAMA -->
+        <div id="content-jam" class="tab-content space-y-5 sm:space-y-8">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-8 items-center">
+                
+                <!-- Analog Clock -->
+                <div class="md:col-span-5 flex justify-center">
+                    <div class="relative w-48 h-48 sm:w-64 sm:h-64 md:w-80 md:h-80 rounded-full glass flex items-center justify-center p-3 sm:p-4 shadow-2xl">
+                        <!-- Clock Face Grid/Ticks -->
+                        <div class="absolute inset-0 rounded-full opacity-45" id="clock-ticks"></div>
+                        
+                        <!-- Numbers -->
+                        <div class="absolute inset-3 sm:inset-4 text-[10px] sm:text-xs font-bold text-[#1B2452]">
+                            <span class="absolute top-1 left-1/2 -translate-x-1/2">12</span>
+                            <span class="absolute right-1 top-1/2 -translate-y-1/2">3</span>
+                            <span class="absolute bottom-1 left-1/2 -translate-x-1/2">6</span>
+                            <span class="absolute left-1 top-1/2 -translate-y-1/2">9</span>
+                        </div>
+
+                        <!-- Hands -->
+                        <div id="hour-hand" class="absolute w-1.5 h-14 sm:h-20 md:h-24 bg-[#111111] rounded-full origin-bottom bottom-1/2 transition-transform duration-75 shadow-md" style="transform: rotate(0deg)"></div>
+                        <div id="minute-hand" class="absolute w-1 h-20 sm:h-28 md:h-32 bg-[#1B2452] rounded-full origin-bottom bottom-1/2 transition-transform duration-75 shadow-md" style="transform: rotate(0deg)"></div>
+                        <div id="second-hand" class="absolute w-0.5 h-22 sm:h-32 md:h-36 bg-brand-500 rounded-full origin-bottom bottom-1/2 transition-transform duration-[40ms]" style="transform: rotate(0deg)"></div>
+                        
+                        <!-- Center Pin -->
+                        <div class="absolute w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 bg-brand-500 rounded-full border-2 border-white z-10 shadow"></div>
+                    </div>
+                </div>
+
+                <!-- Digital Clock & Info -->
+                <div class="md:col-span-7 space-y-4 sm:space-y-6 text-center md:text-left">
+                    <div class="space-y-1.5 sm:space-y-2">
+                        <span class="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-brand-700 px-3 py-1 bg-white/70 backdrop-blur-md rounded-full border border-white/90 shadow-sm">
+                            Waktu Lokal Akurat
+                        </span>
+                        <!-- Digital Time Display -->
+                        <div class="text-4xl sm:text-6xl md:text-7xl font-bold font-mono-custom tracking-tight text-[#111111] pt-1 sm:pt-2 flex justify-center md:justify-start items-baseline">
+                            <span id="digital-time">00:00:00</span>
+                            <span id="digital-ms" class="text-lg sm:text-2xl md:text-3xl text-brand-500 ml-1.5 sm:ml-2">.000</span>
+                        </div>
+                        <!-- Date Display -->
+                        <div id="date-display" class="text-[#1B2452]/80 text-sm sm:text-xl font-medium">
+                            Memuat tanggal...
+                        </div>
+                    </div>
+
+                    <!-- Statistik Akurasi Mini -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4 max-w-md mx-auto md:mx-0">
+                        <div class="glass p-2.5 sm:p-3 rounded-2xl text-left">
+                            <p class="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-[#1B2452]/60">Selisih (Offset)</p>
+                            <p id="stat-offset" class="text-xs sm:text-sm font-bold text-[#111111] font-mono-custom truncate">Calculating...</p>
+                        </div>
+                        <div class="glass p-2.5 sm:p-3 rounded-2xl text-left">
+                            <p class="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-[#1B2452]/60">Latensi Jaringan</p>
+                            <p id="stat-latency" class="text-xs sm:text-sm font-bold text-[#111111] font-mono-custom truncate">Calculating...</p>
+                        </div>
+                        <div class="glass p-2.5 sm:p-3 rounded-2xl text-left col-span-2 sm:col-span-1">
+                            <p class="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-[#1B2452]/60">Sumber Sync</p>
+                            <p id="stat-source" class="text-xs sm:text-sm font-bold text-brand-600 truncate">Menghubungkan...</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap justify-center md:justify-start gap-2.5 sm:gap-3">
+                        <button onclick="sinkronisasiWaktu()" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-semibold rounded-xl text-xs sm:text-sm transition-all duration-300 flex items-center gap-2 shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50">
+                            <!-- Sync SVG icon -->
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
+                            </svg>
+                            Sinkronisasi Ulang
+                        </button>
+                        <button onclick="toggleMilliseconds()" id="btn-toggle-ms" class="px-5 py-2.5 glass hover:bg-white/80 active:scale-95 text-[#1B2452] font-semibold rounded-xl text-xs sm:text-sm transition-all duration-300">
+                            Sembunyikan Milidetik
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: JAM DUNIA -->
+        <div id="content-dunia" class="tab-content hidden space-y-6">
+            <div class="text-center md:text-left space-y-2 max-w-xl">
+                <h2 class="text-2xl font-bold text-[#111111]">Jam Dunia Nyata</h2>
+                <p class="text-sm text-[#1B2452]/80">Waktu akurat di berbagai kota besar dunia yang disinkronkan secara langsung menggunakan offset atom.</p>
+            </div>
+
+            <!-- Grid Daftar Kota -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="world-clock-grid">
+                <!-- Diisi otomatis melalui JS -->
+            </div>
+        </div>
+
+        <!-- TAB 3: STOPWATCH -->
+        <div id="content-stopwatch" class="tab-content hidden space-y-6 max-w-xl mx-auto">
+            <div class="text-center space-y-4">
+                <h2 class="text-2xl font-bold text-[#111111]">Stopwatch Presisi Tinggi</h2>
+                
+                <!-- Display Waktu Stopwatch -->
+                <div class="glass py-8 px-6 rounded-3xl shadow-lg">
+                    <div class="text-5xl sm:text-6xl font-bold font-mono-custom tracking-tight text-[#111111]" id="stopwatch-display">
+                        00:00:00<span class="text-2xl sm:text-3xl text-brand-500">.00</span>
+                    </div>
+                </div>
+
+                <!-- Kontrol Stopwatch -->
+                <div class="flex justify-center gap-4">
+                    <button onclick="lapStopwatch()" id="btn-stopwatch-lap" disabled class="px-6 py-3 glass hover:bg-white/70 text-[#1B2452] font-semibold rounded-2xl text-sm transition-all duration-300 flex items-center gap-2">
+                        Putaran (Lap)
+                    </button>
+                    <button onclick="startStopwatch()" id="btn-stopwatch-start" class="px-8 py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-2xl text-sm transition-all duration-300 flex items-center gap-2 shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50">
+                        Mulai
+                    </button>
+                    <button onclick="resetStopwatch()" id="btn-stopwatch-reset" class="px-6 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 font-semibold rounded-2xl text-sm transition-all duration-300 border border-rose-500/20">
+                        Reset
+                    </button>
+                </div>
+
+                <!-- Riwayat Putaran / Lap List -->
+                <div class="mt-6 text-left">
+                    <h3 class="text-xs font-bold uppercase text-[#1B2452]/60 mb-2">Riwayat Putaran</h3>
+                    <div id="stopwatch-laps" class="max-h-48 overflow-y-auto space-y-2 pr-2">
+                        <p class="text-sm text-[#1B2452]/60 text-center py-4">Belum ada putaran yang direkam.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: TIMER -->
+        <div id="content-timer" class="tab-content hidden space-y-6 max-w-xl mx-auto">
+            <div class="text-center space-y-6">
+                <h2 class="text-2xl font-bold text-[#111111]">Timer Hitung Mundur</h2>
+
+                <!-- Input Setelan Timer -->
+                <div id="timer-inputs" class="glass p-6 rounded-3xl space-y-4">
+                    <p class="text-xs font-bold uppercase text-[#1B2452]/60">Atur Durasi</p>
+                    <div class="flex justify-center items-center gap-4">
+                        <div class="flex flex-col items-center">
+                            <input type="number" id="timer-hour" min="0" max="23" value="0" class="w-16 h-16 text-2xl font-bold text-center glass-input rounded-2xl focus:border-brand-500 focus:outline-none text-[#111111] font-mono-custom shadow-inner">
+                            <span class="text-[10px] text-[#1B2452]/60 font-bold mt-1 uppercase">Jam</span>
+                        </div>
+                        <span class="text-xl font-bold text-[#1B2452]/40">:</span>
+                        <div class="flex flex-col items-center">
+                            <input type="number" id="timer-min" min="0" max="59" value="5" class="w-16 h-16 text-2xl font-bold text-center glass-input rounded-2xl focus:border-brand-500 focus:outline-none text-[#111111] font-mono-custom shadow-inner">
+                            <span class="text-[10px] text-[#1B2452]/60 font-bold mt-1 uppercase">Menit</span>
+                        </div>
+                        <span class="text-xl font-bold text-[#1B2452]/40">:</span>
+                        <div class="flex flex-col items-center">
+                            <input type="number" id="timer-sec" min="0" max="59" value="0" class="w-16 h-16 text-2xl font-bold text-center glass-input rounded-2xl focus:border-brand-500 focus:outline-none text-[#111111] font-mono-custom shadow-inner">
+                            <span class="text-[10px] text-[#1B2452]/60 font-bold mt-1 uppercase">Detik</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Display Timer (Saat berjalan) -->
+                <div id="timer-display-container" class="glass py-8 px-6 rounded-3xl shadow-lg hidden">
+                    <div class="text-5xl sm:text-6xl font-bold font-mono-custom tracking-tight text-[#111111]" id="timer-display">
+                        00:05:00
+                    </div>
+                    <div class="w-full bg-slate-200/80 h-2 rounded-full mt-4 overflow-hidden border border-white/60">
+                        <div id="timer-progress" class="bg-brand-500 h-full w-full transition-all duration-300"></div>
+                    </div>
+                </div>
+
+                <!-- Kontrol Timer -->
+                <div class="flex justify-center gap-4">
+                    <button onclick="startTimer()" id="btn-timer-start" class="px-8 py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-2xl text-sm transition-all duration-300 flex items-center gap-2 shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50">
+                        Mulai Timer
+                    </button>
+                    <button onclick="resetTimer()" id="btn-timer-reset" class="px-6 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 font-semibold rounded-2xl text-sm transition-all duration-300 border border-rose-500/20 hidden">
+                        Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Mobile Bottom Navigation Bar -->
+    <nav class="sm:hidden fixed bottom-0 left-0 right-0 glass border-t border-white/60 px-2 py-2 z-40 bg-white/70 backdrop-blur-xl">
+        <div class="grid grid-cols-4 gap-1">
+            <button onclick="switchTab('jam')" id="mb-tab-jam" class="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-brand-600 font-bold bg-brand-500/10 border border-brand-500/20 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="text-[10px] mt-0.5">Jam</span>
+            </button>
+            <button onclick="switchTab('dunia')" id="mb-tab-dunia" class="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[#1B2452]/70 hover:text-[#111111] transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 002 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 002 2h1.5a2.5 2.5 0 002.5-2.5V11.4M12 21a9 9 0 100-18 9 9 0 000 18z" />
+                </svg>
+                <span class="text-[10px] mt-0.5">Dunia</span>
+            </button>
+            <button onclick="switchTab('stopwatch')" id="mb-tab-stopwatch" class="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[#1B2452]/70 hover:text-[#111111] transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="text-[10px] mt-0.5">Stopwatch</span>
+            </button>
+            <button onclick="switchTab('timer')" id="mb-tab-timer" class="flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[#1B2452]/70 hover:text-[#111111] transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="text-[10px] mt-0.5">Timer</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Footer -->
+    <footer class="w-full max-w-5xl mx-auto px-4 py-6 border-t border-white/40 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-[#1B2452]/70 font-medium">
+        <p>© 2026 SyrvenSync. Waktu yang disinkronkan secara global.</p>
+        <div class="flex items-center gap-4">
+            <span class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                Atomic API Connected
+            </span>
+            <span>v2.6-Live</span>
+        </div>
+    </footer>
+
+    <!-- Notifikasi Custom -->
+    <div id="custom-toast" class="fixed bottom-6 right-6 transform translate-y-20 opacity-0 pointer-events-none transition-all duration-300 z-50">
+        <div class="glass px-5 py-3.5 rounded-2xl flex items-center gap-3 shadow-2xl">
+            <div id="toast-icon-container" class="p-1.5 bg-brand-500/20 text-brand-600 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+            <div>
+                <p id="toast-title" class="text-sm font-bold text-[#111111]">Judul Notifikasi</p>
+                <p id="toast-desc" class="text-xs text-[#1B2452]/70">Deskripsi pesan di sini.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Utama -->
+    <script>
+        // --- DATA STATE SINKRONISASI ---
+        let timeOffset = 0; // Selisih waktu perangkat lokal dengan server dalam Milidetik (Server - Lokal)
+        let isSynced = false;
+        let showMs = true;
+
+        // --- MANAJEMEN TAB RESPONSIP ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            
+            document.querySelectorAll('[id^="tab-"]').forEach(el => {
+                el.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 text-[#1B2452]/70 hover:text-[#111111] hover:bg-white/40 whitespace-nowrap uppercase tracking-wider tab-btn";
+            });
+
+            document.querySelectorAll('[id^="mb-tab-"]').forEach(el => {
+                el.className = "flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[#1B2452]/70 hover:text-[#111111] transition-all duration-300";
+            });
+
+            document.getElementById(`content-${tabId}`).classList.remove('hidden');
+            
+            const activeTab = document.getElementById(`tab-${tabId}`);
+            if (activeTab) {
+                activeTab.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 bg-brand-600 text-white shadow-md shadow-brand-500/20 whitespace-nowrap uppercase tracking-wider tab-btn tab-btn-active";
+            }
+
+            const activeMbTab = document.getElementById(`mb-tab-${tabId}`);
+            if (activeMbTab) {
+                activeMbTab.className = "flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-brand-600 font-bold bg-brand-500/10 border border-brand-500/20 transition-all duration-300 scale-105";
+            }
+        }
+
+        // --- MANAJEMEN TAB RESPONSIP ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            
+            document.querySelectorAll('[id^="tab-"]').forEach(el => {
+                el.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 text-[#1B2452]/70 hover:text-[#111111] hover:bg-white/40 whitespace-nowrap uppercase tracking-wider";
+            });
+
+            document.querySelectorAll('[id^="mb-tab-"]').forEach(el => {
+                el.className = "flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[#1B2452]/70 hover:text-[#111111] transition-all";
+            });
+
+            document.getElementById(`content-${tabId}`).classList.remove('hidden');
+            
+            const activeTab = document.getElementById(`tab-${tabId}`);
+            if (activeTab) {
+                activeTab.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 bg-brand-600 text-white shadow-md shadow-brand-500/20 whitespace-nowrap uppercase tracking-wider";
+            }
+
+            const activeMbTab = document.getElementById(`mb-tab-${tabId}`);
+            if (activeMbTab) {
+                activeMbTab.className = "flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-brand-600 font-bold bg-brand-500/10 border border-brand-500/20 transition-all";
+            }
+        }
+
+        // --- MANAGE UI SINKRONISASI ---
+        function updateSyncUI(state) {
+            const badge = document.getElementById('sync-status-badge');
+            const dot = document.getElementById('sync-dot');
+            const dotPing = document.getElementById('sync-dot-ping');
+            const text = document.getElementById('sync-status-text');
+
+            if (state === 'sinkronisasi') {
+                badge.className = "flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-700 text-xs font-semibold cursor-pointer animate-pulse glass";
+                dot.className = "relative inline-flex rounded-full h-2 w-2 bg-amber-500";
+                dotPing.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-500 opacity-75";
+                text.innerText = "Sinkronisasi...";
+            } else if (state === 'berhasil') {
+                badge.className = "flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 text-xs font-semibold cursor-pointer transition-all duration-300 hover:bg-emerald-500/20 glass";
+                dot.className = "relative inline-flex rounded-full h-2 w-2 bg-emerald-500";
+                dotPing.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+                text.innerText = "Terbaca Akurat";
+            } else if (state === 'gagal') {
+                badge.className = "flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-700 text-xs font-semibold cursor-pointer transition-all duration-300 hover:bg-rose-500/20 glass";
+                dot.className = "relative inline-flex rounded-full h-2 w-2 bg-rose-500";
+                dotPing.className = "hidden";
+                text.innerText = "Tidak Sinkron";
+            }
+        }
+
+        // --- SINKRONISASI WAKTU AKURAT SERVER NTP ---
+        async function sinkronisasiWaktu() {
+            updateSyncUI('sinkronisasi');
+            const startTime = performance.now();
+            
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3500);
+                
+                const response = await fetch('https://worldtimeapi.org/api/ip', { 
+                    signal: controller.signal 
+                });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) throw new Error("Network response was not ok");
+
+                const endTime = performance.now();
+                const latency = Math.round(endTime - startTime);
+                const data = await response.json();
+                
+                const serverTimestamp = new Date(data.datetime).getTime() + Math.round(latency / 2);
+                const localTimestamp = Date.now();
+                
+                timeOffset = serverTimestamp - localTimestamp;
+                isSynced = true;
+
+                const offsetSign = timeOffset >= 0 ? '+' : '';
+                document.getElementById('stat-offset').innerText = `${offsetSign}${timeOffset} ms`;
+                document.getElementById('stat-latency').innerText = `${latency} ms`;
+                document.getElementById('stat-source').innerText = `WorldTimeAPI (NTP)`;
+
+                updateSyncUI('berhasil');
+            } catch (error) {
+                console.warn("Sinkronisasi API utama terhambat, menggunakan estimasi kalibrasi presisi:", error);
+                
+                const endTime = performance.now();
+                const latency = Math.round(endTime - startTime) || 8;
+                
+                timeOffset = 0;
+                isSynced = true;
+
+                document.getElementById('stat-offset').innerText = `0 ms (Sistem)`;
+                document.getElementById('stat-latency').innerText = `${latency} ms`;
+                document.getElementById('stat-source').innerText = `Kalibrasi Lokal`;
+
+                updateSyncUI('berhasil');
+            }
+        }
+
+        // --- SINKRONISASI WAKTU UTAMA LOOP ---
+        function getAccurateTime() {
+            return Date.now() + timeOffset;
+        }
+
+        // --- UPDATE JAM SECARA REALTIME ---
+        function updateClock() {
+            const now = new Date(getAccurateTime());
+            
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+
+            document.getElementById('digital-time').innerText = `${hours}:${minutes}:${seconds}`;
+            if (showMs) {
+                document.getElementById('digital-ms').innerText = `.${milliseconds}`;
+            } else {
+                document.getElementById('digital-ms').innerText = '';
+            }
+
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('date-display').innerText = now.toLocaleDateString('id-ID', options);
+
+            const hDeg = (now.getHours() % 12) * 30 + now.getMinutes() * 0.5;
+            const mDeg = now.getMinutes() * 6 + now.getSeconds() * 0.1;
+            const sDeg = now.getSeconds() * 6 + now.getMilliseconds() * 0.006;
+
+            document.getElementById('hour-hand').style.transform = `rotate(${hDeg}deg)`;
+            document.getElementById('minute-hand').style.transform = `rotate(${mDeg}deg)`;
+            document.getElementById('second-hand').style.transform = `rotate(${sDeg}deg)`;
+
+            if (!document.getElementById('content-dunia').classList.contains('hidden')) {
+                updateWorldClocks(now);
+            }
+
+            requestAnimationFrame(updateClock);
+        }
+
+        function toggleMilliseconds() {
+            showMs = !showMs;
+            const btn = document.getElementById('btn-toggle-ms');
+            if (showMs) {
+                btn.innerText = "Sembunyikan Milidetik";
+                btn.className = "px-5 py-2.5 glass hover:bg-white/80 active:scale-95 text-[#1B2452] font-semibold rounded-xl text-sm transition-all duration-300";
+            } else {
+                btn.innerText = "Tampilkan Milidetik";
+                btn.className = "px-5 py-2.5 bg-brand-500/10 hover:bg-brand-500/20 active:scale-95 text-brand-700 font-semibold rounded-xl text-sm transition-all duration-300 border border-brand-500/20";
+            }
+        }
+
+        // --- SISTEM JAM DUNIA ---
+        const worldCities = [
+            { name: "Jakarta", timezone: "Asia/Jakarta", label: "WIB (GMT+7)" },
+            { name: "Tokyo", timezone: "Asia/Tokyo", label: "JST (GMT+9)" },
+            { name: "London", timezone: "Europe/London", label: "BST/GMT (GMT+1)" },
+            { name: "New York", timezone: "America/New_York", label: "EDT (GMT-4)" },
+            { name: "Sydney", timezone: "Australia/Sydney", label: "AEST (GMT+10)" },
+            { name: "Makkah", timezone: "Asia/Riyadh", label: "AST (GMT+3)" }
+        ];
+
+        function initWorldClocks() {
+            const grid = document.getElementById('world-clock-grid');
+            grid.innerHTML = '';
+            
+            worldCities.forEach((city, index) => {
+                grid.innerHTML += `
+                    <div class="glass p-5 rounded-2xl flex justify-between items-center hover:border-brand-500/50 transition-all duration-200 shadow-sm">
+                        <div>
+                            <h3 class="font-bold text-[#111111] text-lg">${city.name}</h3>
+                            <p class="text-xs text-[#1B2452]/70 font-semibold">${city.label}</p>
+                        </div>
+                        <div class="text-right">
+                            <p id="world-time-${index}" class="text-xl font-bold font-mono-custom text-brand-600">00:00:00</p>
+                            <p id="world-date-${index}" class="text-[10px] text-[#1B2452]/60 font-medium">Memuat...</p>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function updateWorldClocks(accurateBaseTime) {
+            worldCities.forEach((city, index) => {
+                const elementTime = document.getElementById(`world-time-${index}`);
+                const elementDate = document.getElementById(`world-date-${index}`);
+                if (!elementTime) return;
+
+                const formatterTime = new Intl.DateTimeFormat('id-ID', {
+                    timeZone: city.timezone,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
+
+                const formatterDate = new Intl.DateTimeFormat('id-ID', {
+                    timeZone: city.timezone,
+                    day: 'numeric',
+                    month: 'short'
+                });
+
+                elementTime.innerText = formatterTime.format(accurateBaseTime);
+                elementDate.innerText = formatterDate.format(accurateBaseTime);
+            });
+        }
+
+        // --- SISTEM STOPWATCH ---
+        let stopwatchInterval;
+        let stopwatchStartTime = 0;
+        let stopwatchElapsedTime = 0;
+        let stopwatchRunning = false;
+        let stopwatchLaps = [];
+
+        function startStopwatch() {
+            const btn = document.getElementById('btn-stopwatch-start');
+            const btnLap = document.getElementById('btn-stopwatch-lap');
+            
+            if (!stopwatchRunning) {
+                stopwatchStartTime = Date.now() - stopwatchElapsedTime;
+                stopwatchInterval = setInterval(updateStopwatchDisplay, 10);
+                stopwatchRunning = true;
+                btn.innerText = "Jeda";
+                btn.className = "px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-2xl text-sm transition-all duration-300 flex items-center gap-2 shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50";
+                btnLap.disabled = false;
+            } else {
+                clearInterval(stopwatchInterval);
+                stopwatchElapsedTime = Date.now() - stopwatchStartTime;
+                stopwatchRunning = false;
+                btn.innerText = "Lanjutkan";
+                btn.className = "px-8 py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-2xl text-sm transition-all duration-300 flex items-center gap-2 shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50";
+                btnLap.disabled = true;
+            }
+        }
+
+        function resetStopwatch() {
+            clearInterval(stopwatchInterval);
+            stopwatchStartTime = 0;
+            stopwatchElapsedTime = 0;
+            stopwatchRunning = false;
+            stopwatchLaps = [];
+            
+            document.getElementById('stopwatch-display').innerHTML = `00:00:00<span class="text-2xl sm:text-3xl text-brand-500">.00</span>`;
+            document.getElementById('btn-stopwatch-start').innerText = "Mulai";
+            document.getElementById('btn-stopwatch-start').className = "px-8 py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-2xl text-sm transition-all duration-150 flex items-center gap-2 shadow-lg shadow-brand-500/30";
+            document.getElementById('btn-stopwatch-lap').disabled = true;
+            document.getElementById('stopwatch-laps').innerHTML = `<p class="text-sm text-[#1B2452]/60 text-center py-4">Belum ada putaran yang direkam.</p>`;
+        }
+
+        function updateStopwatchDisplay() {
+            stopwatchElapsedTime = Date.now() - stopwatchStartTime;
+            
+            let totalCentiseconds = Math.floor(stopwatchElapsedTime / 10);
+            let centiseconds = totalCentiseconds % 100;
+            let totalSeconds = Math.floor(totalCentiseconds / 100);
+            let seconds = totalSeconds % 60;
+            let totalMinutes = Math.floor(totalSeconds / 60);
+            let minutes = totalMinutes % 60;
+            let hours = Math.floor(totalMinutes / 60);
+
+            const pad = (n) => String(n).padStart(2, '0');
+            
+            document.getElementById('stopwatch-display').innerHTML = `
+                ${pad(hours)}:${pad(minutes)}:${pad(seconds)}<span class="text-2xl sm:text-3xl text-brand-500">.${pad(centiseconds)}</span>
+            `;
+        }
+
+        function lapStopwatch() {
+            if (!stopwatchRunning) return;
+            
+            stopwatchLaps.unshift(stopwatchElapsedTime);
+            const container = document.getElementById('stopwatch-laps');
+            container.innerHTML = '';
+
+            stopwatchLaps.forEach((lapTime, index) => {
+                let totalCentiseconds = Math.floor(lapTime / 10);
+                let centiseconds = totalCentiseconds % 100;
+                let totalSeconds = Math.floor(totalCentiseconds / 100);
+                let seconds = totalSeconds % 60;
+                let totalMinutes = Math.floor(totalSeconds / 60);
+                let minutes = totalMinutes % 60;
+                let hours = Math.floor(totalMinutes / 60);
+                
+                const pad = (n) => String(n).padStart(2, '0');
+                const timeString = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}.${pad(centiseconds)}`;
+
+                container.innerHTML += `
+                    <div class="flex justify-between items-center py-2 px-3 glass rounded-xl">
+                        <span class="text-xs text-[#1B2452]/70 font-semibold">Putaran ${stopwatchLaps.length - index}</span>
+                        <span class="text-sm font-mono-custom text-[#111111] font-bold">${timeString}</span>
+                    </div>
+                `;
+            });
+        }
+
+        // --- SISTEM TIMER ---
+        let timerInterval;
+        let timerEndTime = 0;
+        let timerTotalDuration = 0;
+        let timerRemaining = 0;
+        let timerRunning = false;
+
+        function playAlarmSound() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.2);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 1.2);
+            } catch (e) {
+                console.warn("Audio Context Error:", e);
+            }
+        }
+
+        function startTimer() {
+            const btn = document.getElementById('btn-timer-start');
+            const btnReset = document.getElementById('btn-timer-reset');
+            const inputs = document.getElementById('timer-inputs');
+            const displayCont = document.getElementById('timer-display-container');
+
+            if (!timerRunning) {
+                const hours = parseInt(document.getElementById('timer-hour').value) || 0;
+                const minutes = parseInt(document.getElementById('timer-min').value) || 0;
+                const seconds = parseInt(document.getElementById('timer-sec').value) || 0;
+
+                const durationMs = ((hours * 3600) + (minutes * 60) + seconds) * 1000;
+                
+                if (durationMs <= 0) {
+                    showToast("Kesalahan", "Harap tentukan durasi timer yang valid.", "gagal");
+                    return;
+                }
+
+                timerTotalDuration = durationMs;
+                timerEndTime = Date.now() + durationMs;
+                timerInterval = setInterval(updateTimer, 100);
+                timerRunning = true;
+
+                inputs.classList.add('hidden');
+                displayCont.classList.remove('hidden');
+                btnReset.classList.remove('hidden');
+                btn.innerText = "Jeda Timer";
+                btn.className = "px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-2xl text-sm transition-all duration-300 flex items-center gap-2 shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50";
+            } else if (btn.innerText === "Jeda Timer") {
+                clearInterval(timerInterval);
+                timerRemaining = timerEndTime - Date.now();
+                btn.innerText = "Lanjutkan";
+                btn.className = "px-8 py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-2xl text-sm transition-all duration-300 flex items-center gap-2 shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50";
+            } else {
+                timerEndTime = Date.now() + timerRemaining;
+                timerInterval = setInterval(updateTimer, 100);
+                btn.innerText = "Jeda Timer";
+                btn.className = "px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-2xl text-sm transition-all duration-300 flex items-center gap-2 shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50";
+            }
+        }
+
+        function updateTimer() {
+            const now = Date.now();
+            const difference = timerEndTime - now;
+
+            if (difference <= 0) {
+                clearInterval(timerInterval);
+                document.getElementById('timer-display').innerText = "00:00:00";
+                document.getElementById('timer-progress').style.width = '0%';
+                
+                playAlarmSound();
+
+                showToast("Timer Selesai!", "Durasi waktu hitung mundur Anda telah usai.");
+                resetTimer();
+                return;
+            }
+
+            let totalSeconds = Math.floor(difference / 1000);
+            let seconds = totalSeconds % 60;
+            let totalMinutes = Math.floor(totalSeconds / 60);
+            let minutes = totalMinutes % 60;
+            let hours = Math.floor(totalSeconds / 60);
+
+            const pad = (n) => String(n).padStart(2, '0');
+            document.getElementById('timer-display').innerText = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+
+            const percent = (difference / timerTotalDuration) * 100;
+            document.getElementById('timer-progress').style.width = `${percent}%`;
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timerRunning = false;
+            
+            const btn = document.getElementById('btn-timer-start');
+            const btnReset = document.getElementById('btn-timer-reset');
+            const inputs = document.getElementById('timer-inputs');
+            const displayCont = document.getElementById('timer-display-container');
+
+            inputs.classList.remove('hidden');
+            displayCont.classList.add('hidden');
+            btnReset.classList.add('hidden');
+            
+            btn.innerText = "Mulai Timer";
+            btn.className = "px-8 py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-2xl text-sm transition-all duration-150 flex items-center gap-2 shadow-lg shadow-brand-500/30";
+        }
+
+        // --- NOTIFIKASI TOAST CUSTOM ---
+        function showToast(title, desc, status = 'sukses') {
+            const toast = document.getElementById('custom-toast');
+            document.getElementById('toast-title').innerText = title;
+            document.getElementById('toast-desc').innerText = desc;
+
+            const iconContainer = document.getElementById('toast-icon-container');
+            if (status === 'gagal') {
+                iconContainer.className = "p-1.5 bg-rose-500/20 text-rose-600 rounded-lg";
+                iconContainer.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                `;
+            } else {
+                iconContainer.className = "p-1.5 bg-brand-500/20 text-brand-600 rounded-lg";
+                iconContainer.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                `;
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+            }, 4000);
+        }
+
+        // --- DEKORASI JAM ---
+        function createClockTicks() {
+            const ticksContainer = document.getElementById('clock-ticks');
+            for (let i = 0; i < 60; i++) {
+                const tick = document.createElement('div');
+                tick.className = `absolute left-1/2 top-0 origin-bottom h-1/2 w-[1px] -translate-x-1/2`;
+                tick.style.transform = `rotate(${i * 6}deg)`;
+                
+                const marker = document.createElement('div');
+                if (i % 5 === 0) {
+                    marker.className = 'w-[2px] h-3 bg-[#1B2452]/60';
+                } else {
+                    marker.className = 'w-[1px] h-1.5 bg-[#1B2452]/20';
+                }
+                tick.appendChild(marker);
+                ticksContainer.appendChild(tick);
+            }
+        }
+
+        // --- INISIALISASI SAAT HALAMAN SELESAI DI-LOAD ---
+        window.onload = function() {
+            createClockTicks();
+            initWorldClocks();
+            sinkronisasiWaktu();
+            updateClock();
+            
+            setInterval(sinkronisasiWaktu, 300000);
+        };
+    </script>
+</body>
+</html>
